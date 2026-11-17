@@ -3,11 +3,12 @@ const router = express.Router();
 const Telemetry = require('../models/Telemetry');
 
 /**
- * Handler for ingesting telemetry data.
+ * POST /api/ingestion
+ * Ingestion endpoint for IoT sensor telemetry.
  * Accepts either a single object or an array of objects for batching.
  * Uses Telemetry.insertMany() to save to the MongoDB Time-Series collection.
  */
-const handleIngestion = async (req, res) => {
+router.post('/api/ingestion', async (req, res) => {
   try {
     const payload = req.body;
 
@@ -35,16 +36,13 @@ const handleIngestion = async (req, res) => {
       details: error.message,
     });
   }
-};
-
-// Route definitions (supporting mount at /api/ingestion or directly)
-router.post('/', handleIngestion);
-router.post('/api/ingestion', handleIngestion);
+});
 
 /**
- * Optional GET endpoint to retrieve recent telemetry for monitoring/verification
+ * GET /api/ingestion
+ * Optional endpoint to retrieve recent telemetry for verification/monitoring.
  */
-const handleGetTelemetry = async (req, res) => {
+router.get('/api/ingestion', async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 500);
     const filter = {};
@@ -67,9 +65,6 @@ const handleGetTelemetry = async (req, res) => {
       details: error.message,
     });
   }
-};
-
-router.get('/', handleGetTelemetry);
-router.get('/api/ingestion', handleGetTelemetry);
+});
 
 module.exports = router;

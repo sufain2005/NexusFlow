@@ -4,6 +4,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 
+// Import ingestion routes
 const ingestionRoutes = require('./routes/ingestion');
 
 // Load environment variables
@@ -19,8 +20,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
-app.use('/api/ingestion', ingestionRoutes);
+// Mount routes at / path
+app.use('/', ingestionRoutes);
 
 // Health Check Route
 app.get('/', (req, res) => {
