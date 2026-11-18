@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
   Controls,
+  Panel,
   useNodesState,
   useEdgesState,
   addEdge,
@@ -36,7 +37,8 @@ function FlowCanvas() {
   const reactFlowWrapper = useRef(null);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, toObject } = useReactFlow();
+  const [deployedNotice, setDeployedNotice] = useState(false);
 
   // Register both custom nodes
   const nodeTypes = useMemo(
@@ -87,6 +89,22 @@ function FlowCanvas() {
     [screenToFlowPosition, setNodes]
   );
 
+  // Serialize current graph state and print to console
+  const handleDeploy = useCallback(() => {
+    const flowData = toObject ? toObject() : { nodes, edges };
+    const serializedGraph = {
+      nodes: flowData.nodes,
+      edges: flowData.edges,
+    };
+
+    console.log('🚀 [NexusFlow] Deploy Engine - Serialized Graph:');
+    console.log(JSON.stringify(serializedGraph, null, 2));
+    console.log('Raw Graph Object:', serializedGraph);
+
+    setDeployedNotice(true);
+    setTimeout(() => setDeployedNotice(false), 2500);
+  }, [toObject, nodes, edges]);
+
   return (
     <div
       style={{
@@ -114,6 +132,45 @@ function FlowCanvas() {
         >
           <Background />
           <Controls />
+          <Panel position="top-right">
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+              <button
+                onClick={handleDeploy}
+                style={{
+                  padding: '10px 18px',
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.25), 0 2px 4px -2px rgba(37, 99, 235, 0.1)',
+                  transition: 'background-color 0.2s ease, transform 0.1s ease',
+                  fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#1d4ed8')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#2563eb')}
+              >
+                Deploy Engine
+              </button>
+              {deployedNotice && (
+                <span
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    color: '#16a34a',
+                    backgroundColor: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                  }}
+                >
+                  ✓ Graph serialized to console!
+                </span>
+              )}
+            </div>
+          </Panel>
         </ReactFlow>
       </div>
     </div>
