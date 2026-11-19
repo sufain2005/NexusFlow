@@ -14,6 +14,7 @@ import '@xyflow/react/dist/style.css';
 
 import SensorNode from './nodes/SensorNode';
 import ActionNode from './nodes/ActionNode';
+import MathNode from './nodes/MathNode';
 import Sidebar from './Sidebar';
 
 const initialNodes = [
@@ -40,11 +41,13 @@ function FlowCanvas() {
   const { screenToFlowPosition, toObject } = useReactFlow();
   const [deployedNotice, setDeployedNotice] = useState(false);
 
-  // Register both custom nodes
+  // Register all custom nodes (Sensor, Action, and Math Filter)
   const nodeTypes = useMemo(
     () => ({
       sensor: SensorNode,
       action: ActionNode,
+      math: MathNode,
+      mathFilter: MathNode,
     }),
     []
   );
@@ -75,12 +78,21 @@ function FlowCanvas() {
         y: event.clientY,
       });
 
+      let defaultLabel = 'New Node';
+      if (type === 'sensor') {
+        defaultLabel = 'New Sensor';
+      } else if (type === 'action') {
+        defaultLabel = 'New Action';
+      } else if (type === 'math' || type === 'mathFilter') {
+        defaultLabel = 'Temp > 80°C';
+      }
+
       const newNode = {
         id: `${type}_${Date.now()}`,
         type,
         position,
         data: {
-          label: type === 'sensor' ? 'New Sensor' : 'New Action',
+          label: defaultLabel,
         },
       };
 

@@ -82,6 +82,42 @@ export default function Sidebar() {
           </div>
         </div>
 
+        {/* Math Filter Draggable */}
+        <div
+          draggable
+          onDragStart={(e) => onDragStart(e, 'math')}
+          style={{
+            padding: '12px 14px',
+            background: '#fff7ed',
+            border: '1px solid #fdba74',
+            borderRadius: '8px',
+            cursor: 'grab',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: '0 1px 3px rgba(234, 88, 12, 0.08)',
+            transition: 'transform 0.15s, box-shadow 0.15s',
+          }}
+        >
+          <span
+            style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: '#ea580c',
+              flexShrink: 0,
+            }}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#9a3412' }}>
+              Math Filter
+            </span>
+            <span style={{ fontSize: '11px', color: '#c2410c' }}>
+              Threshold & conditions
+            </span>
+          </div>
+        </div>
+
         {/* Action Node Draggable */}
         <div
           draggable
