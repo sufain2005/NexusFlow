@@ -4,8 +4,9 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 
-// Import ingestion routes
+// Import routes
 const ingestionRoutes = require('./routes/ingestion');
+const rulesRoutes = require('./routes/rules');
 
 // Load environment variables
 dotenv.config();
@@ -20,8 +21,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Mount routes at / path
+// Mount routes
 app.use('/', ingestionRoutes);
+app.use('/api/rules', rulesRoutes);
+app.use('/', rulesRoutes); // Supports POST /api/rules/deploy directly
 
 // Health Check Route
 app.get('/', (req, res) => {
