@@ -1,14 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const Telemetry = require('../models/Telemetry');
+const { evaluateTelemetry } = require('../services/compiler');
 
 /**
- * POST /api/ingestion
- * Ingestion endpoint for IoT sensor telemetry.
+ * Handler for ingesting telemetry data.
  * Accepts either a single object or an array of objects for batching.
- * Uses Telemetry.insertMany() to save to the MongoDB Time-Series collection.
+ * Uses Telemetry.insertMany() to save to the MongoDB Time-Series collection,
+ * then instantly calls evaluateTelemetry() to evaluate against active RxJS rule pipelines.
  */
-router.post('/api/ingestion', async (req, res) => {
+const handleIngestion = async (req, res) => {
   try {
     const payload = req.body;
 
@@ -21,8 +22,11 @@ router.post('/api/ingestion', async (req, res) => {
     // Normalize incoming mock telemetry data (single object or array for batching)
     const telemetryData = Array.isArray(payload) ? payload : [payload];
 
-    // Save using Telemetry.insertMany()
+    // 1. Save to MongoDB Time-Series collection using Telemetry.insertMany()
     const result = await Telemetry.insertMany(telemetryData);
+
+    // 2. Real-time evaluation against active compiled rules
+    evaluateTelemetry(telemetryData);
 
     return res.status(201).json({
       message: 'Telemetry data ingested successfully',
@@ -36,13 +40,16 @@ router.post('/api/ingestion', async (req, res) => {
       details: error.message,
     });
   }
-});
+};
+
+// Route definitions (supporting mount at /api/ingestion or root)
+router.post('/', handleIngestion);
+router.post('/api/ingestion', handleIngestion);
 
 /**
- * GET /api/ingestion
- * Optional endpoint to retrieve recent telemetry for verification/monitoring.
+ * Optional GET endpoint to retrieve recent telemetry for monitoring/verification
  */
-router.get('/api/ingestion', async (req, res) => {
+const handleGetTelemetry = async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 500);
     const filter = {};
@@ -65,6 +72,9 @@ router.get('/api/ingestion', async (req, res) => {
       details: error.message,
     });
   }
-});
+};
+
+router.get('/', handleGetTelemetry);
+router.get('/api/ingestion', handleGetTelemetry);
 
 module.exports = router;
