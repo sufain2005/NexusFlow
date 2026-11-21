@@ -84,13 +84,22 @@ function compileGraph(graphPayload) {
         const mathLabel = targetNode.data?.label || 'Math Filter';
         console.log(`[Compiler] Configuring Math Filter pipeline: "${mathLabel}"`);
 
-        // Parse numerical threshold from Math node label (e.g., "Temp > 80°C", "> 80", etc.)
+        // Read threshold dynamically from node.data.threshold or parse from label
         let threshold = 80;
-        const match = String(mathLabel).match(/(\d+(?:\.\d+)?)/);
-        if (match) {
-          threshold = parseFloat(match[1]);
+        if (typeof targetNode.data?.threshold === 'number') {
+          threshold = targetNode.data.threshold;
+        } else if (targetNode.data?.threshold !== undefined && targetNode.data?.threshold !== '') {
+          threshold = parseFloat(targetNode.data.threshold);
+        } else {
+          const match = String(mathLabel).match(/(\d+(?:\.\d+)?)/);
+          if (match) {
+            threshold = parseFloat(match[1]);
+          }
         }
-        const isLessThan = mathLabel.includes('<');
+
+        // Read operator dynamically from node.data.operator or parse from label
+        const operator = targetNode.data?.operator || (mathLabel.includes('<') ? '<' : '>');
+        const isLessThan = operator === '<';
 
         // Locate downstream action nodes connected to this Math Filter node
         const downstreamIds = adjacencyList.get(targetNode.id) || [];
@@ -98,7 +107,7 @@ function compileGraph(graphPayload) {
           const actionNode = nodeMap.get(downstreamId);
           if (actionNode && actionNode.type === 'action') {
             const actionLabel = actionNode.data?.label || 'Alert Action';
-            console.log(`[Compiler] Registered Pipeline: [${sensorLabel}] -> [${mathLabel}] -> [${actionLabel}]`);
+            console.log(`[Compiler] Registered Pipeline: [${sensorLabel}] -> [${operator} ${threshold}] -> [${actionLabel}]`);
 
             // Use RxJS operators (filter, map) to detect threshold breach and construct alert
             const pipeline$ = telemetryStream$.asObservable().pipe(
@@ -117,7 +126,7 @@ function compileGraph(graphPayload) {
                 sensorId: telemetry.sensorId || 'Unknown Sensor',
                 value: telemetry.temperature,
                 threshold,
-                operator: isLessThan ? '<' : '>',
+                operator,
                 action: actionLabel,
                 timestamp: telemetry.timestamp || new Date().toISOString(),
               }))

@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const Telemetry = require('../models/Telemetry');
 const { evaluateTelemetry } = require('../services/compiler');
 
 /**
  * Handler for ingesting telemetry data.
  * Accepts either a single object or an array of objects for batching.
- * Uses Telemetry.insertMany() to save to the MongoDB Time-Series collection,
- * then instantly calls evaluateTelemetry() to evaluate against active RxJS rule pipelines.
+ * Evaluates live telemetry against RxJS rule pipelines, and persists to MongoDB if connected.
  */
 const handleIngestion = async (req, res) => {
   try {
@@ -22,16 +22,22 @@ const handleIngestion = async (req, res) => {
     // Normalize incoming mock telemetry data (single object or array for batching)
     const telemetryData = Array.isArray(payload) ? payload : [payload];
 
-    // 1. Save to MongoDB Time-Series collection using Telemetry.insertMany()
-    const result = await Telemetry.insertMany(telemetryData);
-
-    // 2. Real-time evaluation against active compiled rules
+    // 1. Always evaluate live telemetry against active rules immediately
     evaluateTelemetry(telemetryData);
+
+    // 2. Persist to MongoDB Time-Series collection if connected
+    let insertedDocs = [];
+    if (mongoose.connection.readyState === 1) {
+      insertedDocs = await Telemetry.insertMany(telemetryData, { ordered: false });
+    } else {
+      console.warn('[Ingestion Router] Notice: MongoDB is not connected; telemetry evaluated in-memory only.');
+    }
 
     return res.status(201).json({
       message: 'Telemetry data ingested successfully',
-      count: result.length,
-      data: result,
+      count: telemetryData.length,
+      dbSaved: mongoose.connection.readyState === 1,
+      data: insertedDocs.length > 0 ? insertedDocs : telemetryData,
     });
   } catch (error) {
     console.error('Database ingestion error:', error.message);
@@ -42,15 +48,19 @@ const handleIngestion = async (req, res) => {
   }
 };
 
-// Route definitions (supporting mount at /api/ingestion or root)
-router.post('/', handleIngestion);
-router.post('/api/ingestion', handleIngestion);
-
 /**
- * Optional GET endpoint to retrieve recent telemetry for monitoring/verification
+ * GET endpoint to retrieve recent telemetry for monitoring/verification
  */
 const handleGetTelemetry = async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(200).json({
+        count: 0,
+        data: [],
+        notice: 'MongoDB is currently disconnected. Start MongoDB to view historical records.',
+      });
+    }
+
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 500);
     const filter = {};
     if (req.query.sensorId) {
@@ -74,7 +84,9 @@ const handleGetTelemetry = async (req, res) => {
   }
 };
 
-router.get('/', handleGetTelemetry);
+router.post('/', handleIngestion);
+router.post('/api/ingestion', handleIngestion);
+
 router.get('/api/ingestion', handleGetTelemetry);
 
 module.exports = router;

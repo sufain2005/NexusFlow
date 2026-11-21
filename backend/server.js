@@ -21,18 +21,19 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Mount routes
-app.use('/', ingestionRoutes);
-app.use('/api/rules', rulesRoutes);
-app.use('/', rulesRoutes); // Supports POST /api/rules/deploy directly
-
-// Health Check Route
+// Health Check Route (defined before router mounts so GET / is always instant and never blocked by DB)
 app.get('/', (req, res) => {
   res.json({
     message: 'NexusFlow IoT Rule Engine API is running',
     dbStatus: ['disconnected', 'connected', 'connecting', 'disconnecting'][mongoose.connection.readyState] || 'unknown',
   });
 });
+
+// Mount routes
+app.use('/api/ingestion', ingestionRoutes);
+app.use('/', ingestionRoutes);
+app.use('/api/rules', rulesRoutes);
+app.use('/', rulesRoutes);
 
 // Connect to MongoDB
 mongoose
