@@ -1,10 +1,14 @@
 const { Subject, filter, map } = require('rxjs');
+const Rule = require('../models/Rule');
 
 /**
  * RxJS Subject representing the continuous incoming IoT telemetry stream.
  * Live sensor data is pushed into this stream for real-time rule evaluation.
  */
 const telemetryStream$ = new Subject();
+
+// Registry of active subscriptions across all compiled rule graphs
+let activeSubscriptions = [];
 
 /**
  * Pushes new incoming sensor readings into the RxJS telemetry Subject.
@@ -18,6 +22,29 @@ function evaluateTelemetry(data) {
   records.forEach((reading) => {
     telemetryStream$.next(reading);
   });
+}
+
+/**
+ * Helper to match incoming telemetry against a sensor node's identifier or label.
+ */
+function matchesSensor(telemetry, sensorLabel) {
+  if (!telemetry) return false;
+  if (telemetry.sensorId && sensorLabel) {
+    const cleanSensor = telemetry.sensorId.toLowerCase().replace(/[-_\s]/g, '');
+    const cleanLabel = sensorLabel.toLowerCase().replace(/[-_\s]/g, '');
+
+    // Direct substring match
+    if (cleanSensor.includes(cleanLabel) || cleanLabel.includes(cleanSensor)) {
+      return true;
+    }
+
+    // Token intersection (e.g., "turbine-01" matches "Turbine Sensor")
+    const sensorTokens = telemetry.sensorId.toLowerCase().split(/[-_\s\d]+/);
+    const labelTokens = sensorLabel.toLowerCase().split(/[-_\s\d]+/);
+    const hasOverlap = sensorTokens.some((t) => t.length > 2 && labelTokens.includes(t));
+    if (hasOverlap) return true;
+  }
+  return true;
 }
 
 /**
@@ -50,18 +77,7 @@ function compileGraph(graphPayload) {
     adjacencyList.get(edge.source).push(edge.target);
   });
 
-  const activeSubscriptions = [];
-
-  // Helper to check if telemetry matches a sensor node
-  const matchesSensor = (telemetry, sensorLabel) => {
-    if (!telemetry) return false;
-    if (telemetry.sensorId && sensorLabel) {
-      const cleanSensor = telemetry.sensorId.toLowerCase().replace(/[-_\s]/g, '');
-      const cleanLabel = sensorLabel.toLowerCase().replace(/[-_\s]/g, '');
-      return cleanSensor.includes(cleanLabel) || cleanLabel.includes(cleanSensor);
-    }
-    return true;
-  };
+  const ruleSubscriptions = [];
 
   // 3. Traverse and compile pipelines starting from root 'sensor' nodes
   const sensorNodes = nodes.filter((node) => node.type === 'sensor');
@@ -145,6 +161,7 @@ function compileGraph(graphPayload) {
               },
             });
 
+            ruleSubscriptions.push(subscription);
             activeSubscriptions.push(subscription);
           }
         });
@@ -174,26 +191,66 @@ function compileGraph(graphPayload) {
           },
         });
 
+        ruleSubscriptions.push(subscription);
         activeSubscriptions.push(subscription);
       }
     });
   });
 
-  console.log(`[Compiler] Compilation complete: ${activeSubscriptions.length} active RxJS pipeline(s) listening.`);
+  console.log(`[Compiler] Compilation complete: ${ruleSubscriptions.length} active RxJS pipeline(s) listening.`);
 
   return {
     telemetryStream$,
-    activeCount: activeSubscriptions.length,
+    activeCount: ruleSubscriptions.length,
     pushTelemetry: evaluateTelemetry,
     teardown: () => {
-      activeSubscriptions.forEach((sub) => sub.unsubscribe());
-      console.log('[Compiler] All active pipelines unsubscribed.');
+      ruleSubscriptions.forEach((sub) => {
+        sub.unsubscribe();
+        const idx = activeSubscriptions.indexOf(sub);
+        if (idx !== -1) activeSubscriptions.splice(idx, 1);
+      });
+      console.log('[Compiler] Rule pipelines unsubscribed.');
     },
   };
+}
+
+/**
+ * Queries MongoDB for all active rules and recompiles them into live RxJS pipelines on server boot.
+ *
+ * @returns {Promise<Array>} Array of compiled engine instances
+ */
+async function initializeSavedRules() {
+  try {
+    const activeRules = await Rule.find({ isActive: true });
+
+    if (!activeRules || activeRules.length === 0) {
+      console.log('[Compiler] No active saved rules found in database to restore.');
+      return [];
+    }
+
+    console.log(`[Compiler] Found ${activeRules.length} active rule(s) in MongoDB. Auto-recompiling pipelines...`);
+
+    const compiledEngines = [];
+    for (const rule of activeRules) {
+      console.log(`[Compiler] Restoring rule "${rule.name}" (${rule._id})...`);
+      const engine = compileGraph({
+        nodes: rule.nodes,
+        edges: rule.edges,
+      });
+      compiledEngines.push(engine);
+    }
+
+    console.log(`[Compiler] Auto-reload complete: ${compiledEngines.length} rule graph(s) active on server boot.`);
+    return compiledEngines;
+  } catch (error) {
+    console.error('[Compiler] Error initializing saved rules on server boot:', error.message);
+    return [];
+  }
 }
 
 module.exports = {
   telemetryStream$,
   compileGraph,
   evaluateTelemetry,
+  initializeSavedRules,
 };

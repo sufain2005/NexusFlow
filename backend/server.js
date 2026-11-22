@@ -8,6 +8,9 @@ const path = require('path');
 const ingestionRoutes = require('./routes/ingestion');
 const rulesRoutes = require('./routes/rules');
 
+// Import rule engine initialization
+const { initializeSavedRules } = require('./services/compiler');
+
 // Load environment variables
 dotenv.config();
 dotenv.config({ path: path.resolve(__dirname, '.env') });
@@ -38,8 +41,10 @@ app.use('/', rulesRoutes);
 // Connect to MongoDB
 mongoose
   .connect(MONGODB_URI, { serverSelectionTimeoutMS: 5000 })
-  .then(() => {
+  .then(async () => {
     console.log('Connected to MongoDB successfully');
+    // Auto-reload saved active rules from MongoDB into live RxJS pipelines
+    await initializeSavedRules();
   })
   .catch((err) => {
     console.warn(`[NexusFlow DB Notice] MongoDB connection error: ${err.message}`);
