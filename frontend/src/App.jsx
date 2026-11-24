@@ -16,6 +16,7 @@ import SensorNode from './nodes/SensorNode';
 import ActionNode from './nodes/ActionNode';
 import MathNode from './nodes/MathNode';
 import Sidebar from './Sidebar';
+import ActiveRulesList from './components/ActiveRulesList';
 
 const initialNodes = [
   {
@@ -41,6 +42,9 @@ function FlowCanvas() {
   const { screenToFlowPosition, toObject } = useReactFlow();
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployedNotice, setDeployedNotice] = useState(false);
+  const [isRulesOpen, setIsRulesOpen] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [rulesCount, setRulesCount] = useState(0);
 
   // Register all custom nodes (Sensor, Action, and Math Filter)
   const nodeTypes = useMemo(
@@ -115,15 +119,26 @@ function FlowCanvas() {
 
     try {
       setIsDeploying(true);
-      const API_URL = 'http://localhost:5000/api/rules/deploy';
 
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      // Attempt deployment via localhost with fallback to 127.0.0.1
+      let response;
+      try {
+        response = await fetch('http://localhost:5000/api/rules/deploy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+      } catch {
+        response = await fetch('http://127.0.0.1:5000/api/rules/deploy', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+      }
 
       const data = await response.json();
 
@@ -135,6 +150,10 @@ function FlowCanvas() {
       setDeployedNotice(true);
       setTimeout(() => setDeployedNotice(false), 3000);
 
+      // Trigger automatic refresh of the deployed rules panel and ensure it is open
+      setRefreshTrigger((prev) => prev + 1);
+      setIsRulesOpen(true);
+
       window.alert(
         `🎉 NexusFlow Engine Compiled & Deployed!\n\n` +
         `• Active Pipelines: ${data.activePipelines}\n` +
@@ -143,7 +162,17 @@ function FlowCanvas() {
       );
     } catch (error) {
       console.error('❌ [NexusFlow] Deployment Error:', error);
-      window.alert(`❌ Engine Deployment Failed:\n\n${error.message}`);
+
+      const isNetworkError =
+        error.message.includes('fetch') ||
+        error.message.includes('NetworkError') ||
+        error.name === 'TypeError';
+
+      const errorMsg = isNetworkError
+        ? 'Cannot connect to backend server at http://localhost:5000.\n\nPlease start the backend in your terminal:\n  cd backend\n  npm start'
+        : error.message;
+
+      window.alert(`❌ Engine Deployment Failed:\n\n${errorMsg}`);
     } finally {
       setIsDeploying(false);
     }
@@ -162,7 +191,7 @@ function FlowCanvas() {
       <Sidebar />
 
       {/* Main React Flow Canvas */}
-      <div ref={reactFlowWrapper} style={{ flexGrow: 1, height: '100%' }}>
+      <div ref={reactFlowWrapper} style={{ flexGrow: 1, height: '100%', position: 'relative' }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -178,31 +207,71 @@ function FlowCanvas() {
           <Controls />
           <Panel position="top-right">
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-              <button
-                onClick={handleDeploy}
-                disabled={isDeploying}
-                style={{
-                  padding: '10px 18px',
-                  backgroundColor: isDeploying ? '#93c5fd' : '#2563eb',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: isDeploying ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.25), 0 2px 4px -2px rgba(37, 99, 235, 0.1)',
-                  transition: 'background-color 0.2s ease, transform 0.1s ease',
-                  fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isDeploying) e.currentTarget.style.backgroundColor = '#1d4ed8';
-                }}
-                onMouseLeave={(e) => {
-                  if (!isDeploying) e.currentTarget.style.backgroundColor = '#2563eb';
-                }}
-              >
-                {isDeploying ? 'Deploying...' : 'Deploy Engine'}
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {/* Active Rules Drawer Toggle Button */}
+                <button
+                  onClick={() => setIsRulesOpen((prev) => !prev)}
+                  style={{
+                    padding: '9px 14px',
+                    backgroundColor: isRulesOpen ? '#eff6ff' : '#ffffff',
+                    color: isRulesOpen ? '#1d4ed8' : '#334155',
+                    border: `1px solid ${isRulesOpen ? '#93c5fd' : '#cbd5e1'}`,
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                    transition: 'all 0.15s ease',
+                    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                  }}
+                  title={isRulesOpen ? 'Hide Deployed Rules' : 'Show Deployed Rules'}
+                >
+                  <span>📋 Rules</span>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      backgroundColor: isRulesOpen ? '#dbeafe' : '#f1f5f9',
+                      color: isRulesOpen ? '#1e40af' : '#475569',
+                      padding: '2px 7px',
+                      borderRadius: '9999px',
+                    }}
+                  >
+                    {rulesCount}
+                  </span>
+                </button>
+
+                {/* Deploy Engine Button */}
+                <button
+                  onClick={handleDeploy}
+                  disabled={isDeploying}
+                  style={{
+                    padding: '9px 18px',
+                    backgroundColor: isDeploying ? '#93c5fd' : '#2563eb',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: isDeploying ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.25), 0 2px 4px -2px rgba(37, 99, 235, 0.1)',
+                    transition: 'background-color 0.2s ease, transform 0.1s ease',
+                    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isDeploying) e.currentTarget.style.backgroundColor = '#1d4ed8';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isDeploying) e.currentTarget.style.backgroundColor = '#2563eb';
+                  }}
+                >
+                  {isDeploying ? 'Deploying...' : 'Deploy Engine'}
+                </button>
+              </div>
+
               {deployedNotice && (
                 <span
                   style={{
@@ -222,6 +291,27 @@ function FlowCanvas() {
           </Panel>
         </ReactFlow>
       </div>
+
+      {/* Collapsible Active Rules Drawer / Panel */}
+      {isRulesOpen && (
+        <aside
+          style={{
+            width: '360px',
+            height: '100%',
+            flexShrink: 0,
+            zIndex: 10,
+            borderLeft: '1px solid #e2e8f0',
+            boxShadow: '-4px 0 16px rgba(0, 0, 0, 0.04)',
+            backgroundColor: '#ffffff',
+          }}
+        >
+          <ActiveRulesList
+            refreshTrigger={refreshTrigger}
+            onClose={() => setIsRulesOpen(false)}
+            onRulesCountChange={setRulesCount}
+          />
+        </aside>
+      )}
     </div>
   );
 }

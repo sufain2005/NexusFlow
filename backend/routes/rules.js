@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const Rule = require('../models/Rule');
-const { compileGraph } = require('../services/compiler');
+const { compileGraph, initializeSavedRules } = require('../services/compiler');
 
 // Store the currently active compiled engine instance
 let activeEngine = null;
@@ -79,9 +79,11 @@ const handleDeploy = async (req, res) => {
 const handleGetRules = async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({
-        success: false,
-        message: 'MongoDB is not connected.',
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: [],
+        notice: 'MongoDB is currently disconnected. Saved rules cannot be retrieved.',
       });
     }
 
@@ -92,9 +94,63 @@ const handleGetRules = async (req, res) => {
       data: rules,
     });
   } catch (error) {
+    console.error('[Rules Router] Error fetching rules:', error.message);
     return res.status(500).json({
       success: false,
       error: 'Failed to fetch rules.',
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * DELETE /api/rules/:id
+ * Deletes a rule from MongoDB and reloads active RxJS pipelines in compiler.js
+ */
+const handleDeleteRule = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid rule ID format.',
+      });
+    }
+
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database unavailable: MongoDB is not connected.',
+      });
+    }
+
+    const deletedRule = await Rule.findByIdAndDelete(id);
+
+    if (!deletedRule) {
+      return res.status(404).json({
+        success: false,
+        error: 'Rule not found.',
+      });
+    }
+
+    console.log(`[Rules Router] Deleted rule "${deletedRule.name}" (${deletedRule._id}). Reloading pipelines...`);
+
+    // Reload remaining active rules into compiler
+    const reloadedEngines = await initializeSavedRules();
+    const activePipelines = reloadedEngines.reduce((sum, eng) => sum + (eng.activeCount || 0), 0);
+
+    return res.status(200).json({
+      success: true,
+      message: `Rule "${deletedRule.name}" deleted successfully. Pipelines reloaded.`,
+      deletedRuleId: deletedRule._id,
+      activePipelines,
+    });
+  } catch (error) {
+    console.error('[Rules Router] Error deleting rule:', error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to delete rule.',
       details: error.message,
     });
   }
@@ -106,5 +162,8 @@ router.post('/api/rules/deploy', handleDeploy);
 
 router.get('/', handleGetRules);
 router.get('/api/rules', handleGetRules);
+
+router.delete('/:id', handleDeleteRule);
+router.delete('/api/rules/:id', handleDeleteRule);
 
 module.exports = router;

@@ -11,6 +11,25 @@ const telemetryStream$ = new Subject();
 let activeSubscriptions = [];
 
 /**
+ * Tears down all active rule subscriptions currently in memory.
+ */
+function teardownAll() {
+  if (activeSubscriptions.length > 0) {
+    console.log(`[Compiler] Tearing down ${activeSubscriptions.length} active subscription(s)...`);
+    activeSubscriptions.forEach((sub) => {
+      try {
+        if (sub && typeof sub.unsubscribe === 'function') {
+          sub.unsubscribe();
+        }
+      } catch (err) {
+        console.warn('[Compiler] Error unsubscribing pipeline:', err.message);
+      }
+    });
+    activeSubscriptions = [];
+  }
+}
+
+/**
  * Pushes new incoming sensor readings into the RxJS telemetry Subject.
  * Supports a single telemetry object or an array of objects.
  *
@@ -221,6 +240,15 @@ function compileGraph(graphPayload) {
  */
 async function initializeSavedRules() {
   try {
+    // 1. Reset any existing subscriptions to avoid duplicates
+    teardownAll();
+
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState !== 1) {
+      console.log('[Compiler] MongoDB is not connected; skipping rule reload.');
+      return [];
+    }
+
     const activeRules = await Rule.find({ isActive: true });
 
     if (!activeRules || activeRules.length === 0) {
@@ -240,10 +268,10 @@ async function initializeSavedRules() {
       compiledEngines.push(engine);
     }
 
-    console.log(`[Compiler] Auto-reload complete: ${compiledEngines.length} rule graph(s) active on server boot.`);
+    console.log(`[Compiler] Auto-reload complete: ${compiledEngines.length} rule graph(s) active.`);
     return compiledEngines;
   } catch (error) {
-    console.error('[Compiler] Error initializing saved rules on server boot:', error.message);
+    console.error('[Compiler] Error initializing saved rules:', error.message);
     return [];
   }
 }
@@ -253,4 +281,6 @@ module.exports = {
   compileGraph,
   evaluateTelemetry,
   initializeSavedRules,
+  reloadActiveRules: initializeSavedRules,
+  teardownAll,
 };
