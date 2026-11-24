@@ -18,6 +18,7 @@ import MathNode from './nodes/MathNode';
 import Sidebar from './Sidebar';
 import ActiveRulesList from './components/ActiveRulesList';
 import AlertFeed from './components/AlertFeed';
+import Navbar from './components/Navbar';
 
 const initialNodes = [
   {
@@ -65,6 +66,12 @@ function FlowCanvas() {
     (params) => setEdges((eds) => addEdge(params, eds)),
     [setEdges]
   );
+
+  // Clear all nodes and connections from the canvas
+  const handleClearCanvas = useCallback(() => {
+    setNodes([]);
+    setEdges([]);
+  }, [setNodes, setEdges]);
 
   // Enable drop by preventing default drag over behavior
   const onDragOver = useCallback((event) => {
@@ -186,167 +193,167 @@ function FlowCanvas() {
     <div
       style={{
         display: 'flex',
+        flexDirection: 'column',
         width: '100vw',
         height: '100vh',
         overflow: 'hidden',
       }}
     >
-      {/* Sidebar with draggable node templates */}
-      <Sidebar />
-
-      {/* Main React Flow Canvas */}
-      <div ref={reactFlowWrapper} style={{ flexGrow: 1, height: '100%', position: 'relative' }}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          nodeTypes={nodeTypes}
-          onDragOver={onDragOver}
-          onDrop={onDrop}
-          fitView
+      {/* Top Header Bar */}
+      <Navbar onClearCanvas={handleClearCanvas}>
+        {/* Active Rules Drawer Toggle Button */}
+        <button
+          onClick={() => {
+            if (isDrawerOpen && drawerTab === 'rules') {
+              setIsDrawerOpen(false);
+            } else {
+              setDrawerTab('rules');
+              setIsDrawerOpen(true);
+            }
+          }}
+          style={{
+            padding: '8px 12px',
+            backgroundColor: isDrawerOpen && drawerTab === 'rules' ? '#eff6ff' : '#ffffff',
+            color: isDrawerOpen && drawerTab === 'rules' ? '#1d4ed8' : '#334155',
+            border: `1px solid ${isDrawerOpen && drawerTab === 'rules' ? '#93c5fd' : '#cbd5e1'}`,
+            borderRadius: '8px',
+            fontSize: '12px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+            transition: 'all 0.15s ease',
+          }}
+          title="Toggle Deployed Rules Panel"
         >
-          <Background />
-          <Controls />
-          <Panel position="top-right">
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {/* Active Rules Drawer Toggle Button */}
-                <button
-                  onClick={() => {
-                    if (isDrawerOpen && drawerTab === 'rules') {
-                      setIsDrawerOpen(false);
-                    } else {
-                      setDrawerTab('rules');
-                      setIsDrawerOpen(true);
-                    }
-                  }}
-                  style={{
-                    padding: '9px 12px',
-                    backgroundColor: isDrawerOpen && drawerTab === 'rules' ? '#eff6ff' : '#ffffff',
-                    color: isDrawerOpen && drawerTab === 'rules' ? '#1d4ed8' : '#334155',
-                    border: `1px solid ${isDrawerOpen && drawerTab === 'rules' ? '#93c5fd' : '#cbd5e1'}`,
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                    transition: 'all 0.15s ease',
-                    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                  }}
-                  title="Toggle Deployed Rules Panel"
-                >
-                  <span>📋 Rules</span>
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      backgroundColor: isDrawerOpen && drawerTab === 'rules' ? '#dbeafe' : '#f1f5f9',
-                      color: isDrawerOpen && drawerTab === 'rules' ? '#1e40af' : '#475569',
-                      padding: '2px 7px',
-                      borderRadius: '9999px',
-                    }}
-                  >
-                    {rulesCount}
-                  </span>
-                </button>
+          <span>📋 Rules</span>
+          <span
+            style={{
+              fontSize: '10px',
+              fontWeight: 700,
+              backgroundColor: isDrawerOpen && drawerTab === 'rules' ? '#dbeafe' : '#f1f5f9',
+              color: isDrawerOpen && drawerTab === 'rules' ? '#1e40af' : '#475569',
+              padding: '1px 6px',
+              borderRadius: '9999px',
+            }}
+          >
+            {rulesCount}
+          </span>
+        </button>
 
-                {/* Alert History Feed Toggle Button */}
-                <button
-                  onClick={() => {
-                    if (isDrawerOpen && drawerTab === 'alerts') {
-                      setIsDrawerOpen(false);
-                    } else {
-                      setDrawerTab('alerts');
-                      setIsDrawerOpen(true);
-                    }
-                  }}
-                  style={{
-                    padding: '9px 12px',
-                    backgroundColor: isDrawerOpen && drawerTab === 'alerts' ? '#fff7ed' : '#ffffff',
-                    color: isDrawerOpen && drawerTab === 'alerts' ? '#c2410c' : '#334155',
-                    border: `1px solid ${isDrawerOpen && drawerTab === 'alerts' ? '#fdba74' : '#cbd5e1'}`,
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                    transition: 'all 0.15s ease',
-                    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                  }}
-                  title="Toggle Alert History Feed"
-                >
-                  <span>🔥 Alerts</span>
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      backgroundColor: isDrawerOpen && drawerTab === 'alerts' ? '#fed7aa' : '#f1f5f9',
-                      color: isDrawerOpen && drawerTab === 'alerts' ? '#9a3412' : '#475569',
-                      padding: '2px 7px',
-                      borderRadius: '9999px',
-                    }}
-                  >
-                    {alertsCount}
-                  </span>
-                </button>
+        {/* Alert History Feed Toggle Button */}
+        <button
+          onClick={() => {
+            if (isDrawerOpen && drawerTab === 'alerts') {
+              setIsDrawerOpen(false);
+            } else {
+              setDrawerTab('alerts');
+              setIsDrawerOpen(true);
+            }
+          }}
+          style={{
+            padding: '8px 12px',
+            backgroundColor: isDrawerOpen && drawerTab === 'alerts' ? '#fff7ed' : '#ffffff',
+            color: isDrawerOpen && drawerTab === 'alerts' ? '#c2410c' : '#334155',
+            border: `1px solid ${isDrawerOpen && drawerTab === 'alerts' ? '#fdba74' : '#cbd5e1'}`,
+            borderRadius: '8px',
+            fontSize: '12px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+            transition: 'all 0.15s ease',
+          }}
+          title="Toggle Alert History Feed"
+        >
+          <span>🔥 Alerts</span>
+          <span
+            style={{
+              fontSize: '10px',
+              fontWeight: 700,
+              backgroundColor: isDrawerOpen && drawerTab === 'alerts' ? '#fed7aa' : '#f1f5f9',
+              color: isDrawerOpen && drawerTab === 'alerts' ? '#9a3412' : '#475569',
+              padding: '1px 6px',
+              borderRadius: '9999px',
+            }}
+          >
+            {alertsCount}
+          </span>
+        </button>
 
-                {/* Deploy Engine Button */}
-                <button
-                  onClick={handleDeploy}
-                  disabled={isDeploying}
-                  style={{
-                    padding: '9px 18px',
-                    backgroundColor: isDeploying ? '#93c5fd' : '#2563eb',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    cursor: isDeploying ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.25), 0 2px 4px -2px rgba(37, 99, 235, 0.1)',
-                    transition: 'background-color 0.2s ease, transform 0.1s ease',
-                    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isDeploying) e.currentTarget.style.backgroundColor = '#1d4ed8';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isDeploying) e.currentTarget.style.backgroundColor = '#2563eb';
-                  }}
-                >
-                  {isDeploying ? 'Deploying...' : 'Deploy Engine'}
-                </button>
-              </div>
+        {/* Deploy Engine Button */}
+        <button
+          onClick={handleDeploy}
+          disabled={isDeploying}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: isDeploying ? '#93c5fd' : '#2563eb',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '12px',
+            fontWeight: '600',
+            cursor: isDeploying ? 'not-allowed' : 'pointer',
+            boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
+            transition: 'background-color 0.2s ease',
+          }}
+          onMouseEnter={(e) => {
+            if (!isDeploying) e.currentTarget.style.backgroundColor = '#1d4ed8';
+          }}
+          onMouseLeave={(e) => {
+            if (!isDeploying) e.currentTarget.style.backgroundColor = '#2563eb';
+          }}
+        >
+          {isDeploying ? 'Deploying...' : 'Deploy Engine'}
+        </button>
+      </Navbar>
 
-              {deployedNotice && (
+      {/* Main Workspace Body */}
+      <div style={{ display: 'flex', flex: 1, height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
+        {/* Sidebar with draggable node templates */}
+        <Sidebar />
+
+        {/* Main React Flow Canvas */}
+        <div ref={reactFlowWrapper} style={{ flexGrow: 1, height: '100%', position: 'relative' }}>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            nodeTypes={nodeTypes}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
+            fitView
+          >
+            <Background />
+            <Controls />
+            {deployedNotice && (
+              <Panel position="top-right">
                 <span
                   style={{
                     fontSize: '12px',
-                    fontWeight: 500,
+                    fontWeight: 600,
                     color: '#16a34a',
                     backgroundColor: '#f0fdf4',
                     border: '1px solid #bbf7d0',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.06)',
                   }}
                 >
                   ✓ Engine compiled & active!
                 </span>
-              )}
-            </div>
-          </Panel>
-        </ReactFlow>
-      </div>
+              </Panel>
+            )}
+          </ReactFlow>
+        </div>
 
-      {/* Collapsible Active Rules & Alert History Drawer */}
+        {/* Collapsible Active Rules & Alert History Drawer */}
       {isDrawerOpen && (
         <aside
           style={{
@@ -473,6 +480,7 @@ function FlowCanvas() {
           </div>
         </aside>
       )}
+      </div>
     </div>
   );
 }

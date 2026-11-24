@@ -8,8 +8,8 @@ const path = require('path');
 const ingestionRoutes = require('./routes/ingestion');
 const rulesRoutes = require('./routes/rules');
 
-// Import rule engine initialization
-const { initializeSavedRules } = require('./services/compiler');
+// Import rule engine initialization and status
+const { initializeSavedRules, getActiveRulesCount } = require('./services/compiler');
 
 // Load environment variables
 dotenv.config();
@@ -28,6 +28,20 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/', (req, res) => {
   res.json({
     message: 'NexusFlow IoT Rule Engine API is running',
+    dbStatus: ['disconnected', 'connected', 'connecting', 'disconnecting'][mongoose.connection.readyState] || 'unknown',
+  });
+});
+
+/**
+ * GET /api/health
+ * Returns the engine status, active rules count, and server timestamp.
+ */
+app.get(['/api/health', '/health'], (req, res) => {
+  const count = typeof getActiveRulesCount === 'function' ? getActiveRulesCount() : 0;
+  res.json({
+    status: 'online',
+    activeRulesCount: count,
+    timestamp: new Date().toISOString(),
     dbStatus: ['disconnected', 'connected', 'connecting', 'disconnecting'][mongoose.connection.readyState] || 'unknown',
   });
 });
