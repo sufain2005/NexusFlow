@@ -1,5 +1,7 @@
 const { Subject, filter, map } = require('rxjs');
+const mongoose = require('mongoose');
 const Rule = require('../models/Rule');
+const AlertLog = require('../models/AlertLog');
 
 /**
  * RxJS Subject representing the continuous incoming IoT telemetry stream.
@@ -9,6 +11,45 @@ const telemetryStream$ = new Subject();
 
 // Registry of active subscriptions across all compiled rule graphs
 let activeSubscriptions = [];
+
+// In-memory buffer of recent alerts for quick access and offline DB fallback (max 50)
+const inMemoryAlertLogs = [];
+
+/**
+ * Records an alert event to in-memory history and persists to MongoDB if connected.
+ *
+ * @param {Object} alertData
+ * @param {string} alertData.ruleName
+ * @param {string} alertData.sensorId
+ * @param {number} alertData.value
+ * @param {number} alertData.threshold
+ */
+async function recordAlertLog({ ruleName, sensorId, value, threshold }) {
+  const alertEntry = {
+    ruleName: ruleName || 'IoT Rule Engine',
+    sensorId: sensorId || 'Unknown Sensor',
+    value: Number(value),
+    threshold: Number(threshold),
+    triggeredAt: new Date(),
+  };
+
+  // 1. In-memory buffer
+  inMemoryAlertLogs.unshift(alertEntry);
+  if (inMemoryAlertLogs.length > 50) {
+    inMemoryAlertLogs.pop();
+  }
+
+  // 2. Persist to MongoDB if connected
+  try {
+    if (mongoose.connection.readyState === 1) {
+      await AlertLog.create(alertEntry);
+    }
+  } catch (err) {
+    console.warn('[Compiler] Failed to persist alert log to MongoDB:', err.message);
+  }
+
+  return alertEntry;
+}
 
 /**
  * Tears down all active rule subscriptions currently in memory.
@@ -80,8 +121,9 @@ function compileGraph(graphPayload) {
     throw new Error('Invalid graph payload: "nodes" must be an array.');
   }
 
-  const { nodes = [], edges = [] } = graphPayload;
-  console.log(`[Compiler] Compiling rule graph: ${nodes.length} nodes, ${edges.length} edges.`);
+  const { nodes = [], edges = [], name } = graphPayload;
+  const ruleName = name || 'IoT Rule Engine';
+  console.log(`[Compiler] Compiling rule graph "${ruleName}": ${nodes.length} nodes, ${edges.length} edges.`);
 
   // 1. Index nodes by ID for fast lookup
   const nodeMap = new Map();
@@ -158,6 +200,7 @@ function compileGraph(graphPayload) {
 
               // Map: Transform breached reading into an alert event object
               map((telemetry) => ({
+                ruleName,
                 sensorId: telemetry.sensorId || 'Unknown Sensor',
                 value: telemetry.temperature,
                 threshold,
@@ -174,6 +217,14 @@ function compileGraph(graphPayload) {
                   `[ALERT TRIGGERED] Sensor ID: ${alert.sensorId}, Value: ${alert.value} ` +
                   `(Threshold ${alert.operator} ${alert.threshold} breached) -> Action: ${alert.action}`
                 );
+
+                // Persist alert log entry to MongoDB and in-memory cache
+                recordAlertLog({
+                  ruleName: alert.ruleName,
+                  sensorId: alert.sensorId,
+                  value: alert.value,
+                  threshold: alert.threshold,
+                });
               },
               error: (err) => {
                 console.error(`❌ [Pipeline Error in Action "${actionLabel}"]:`, err.message);
@@ -194,6 +245,7 @@ function compileGraph(graphPayload) {
         const pipeline$ = telemetryStream$.asObservable().pipe(
           filter((telemetry) => matchesSensor(telemetry, sensorLabel)),
           map((telemetry) => ({
+            ruleName,
             sensorId: telemetry.sensorId || 'Unknown Sensor',
             value: telemetry.temperature,
             action: actionLabel,
@@ -204,6 +256,13 @@ function compileGraph(graphPayload) {
         const subscription = pipeline$.subscribe({
           next: (alert) => {
             console.log(`[ALERT TRIGGERED] Sensor ID: ${alert.sensorId}, Value: ${alert.value} -> Action: ${alert.action}`);
+
+            recordAlertLog({
+              ruleName: alert.ruleName,
+              sensorId: alert.sensorId,
+              value: alert.value,
+              threshold: 0,
+            });
           },
           error: (err) => {
             console.error(`❌ [Pipeline Error in Action "${actionLabel}"]:`, err.message);
@@ -262,6 +321,7 @@ async function initializeSavedRules() {
     for (const rule of activeRules) {
       console.log(`[Compiler] Restoring rule "${rule.name}" (${rule._id})...`);
       const engine = compileGraph({
+        name: rule.name,
         nodes: rule.nodes,
         edges: rule.edges,
       });
@@ -283,4 +343,6 @@ module.exports = {
   initializeSavedRules,
   reloadActiveRules: initializeSavedRules,
   teardownAll,
+  recordAlertLog,
+  inMemoryAlertLogs,
 };

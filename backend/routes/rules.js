@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const Rule = require('../models/Rule');
-const { compileGraph, initializeSavedRules } = require('../services/compiler');
+const AlertLog = require('../models/AlertLog');
+const { compileGraph, initializeSavedRules, inMemoryAlertLogs } = require('../services/compiler');
 
 // Store the currently active compiled engine instance
 let activeEngine = null;
@@ -51,7 +52,11 @@ const handleDeploy = async (req, res) => {
     }
 
     // 3. Compile new graph into RxJS pipelines
-    activeEngine = compileGraph({ nodes, edges: Array.isArray(edges) ? edges : [] });
+    activeEngine = compileGraph({
+      name: savedRule?.name || name || `Rule Engine - ${new Date().toLocaleString()}`,
+      nodes,
+      edges: Array.isArray(edges) ? edges : [],
+    });
 
     return res.status(200).json({
       success: true,
@@ -156,9 +161,49 @@ const handleDeleteRule = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/rules/alerts
+ * Returns the 20 most recent triggered alerts from MongoDB (or in-memory cache if DB is offline)
+ */
+const handleGetAlerts = async (req, res) => {
+  try {
+    if (mongoose.connection.readyState === 1) {
+      const alerts = await AlertLog.find()
+        .sort({ triggeredAt: -1 })
+        .limit(20)
+        .lean();
+
+      return res.status(200).json({
+        success: true,
+        count: alerts.length,
+        data: alerts,
+      });
+    }
+
+    // Fallback to in-memory alerts when MongoDB is offline
+    const memoryAlerts = (inMemoryAlertLogs || []).slice(0, 20);
+    return res.status(200).json({
+      success: true,
+      count: memoryAlerts.length,
+      data: memoryAlerts,
+      notice: 'MongoDB is currently disconnected. Serving in-memory alerts.',
+    });
+  } catch (error) {
+    console.error('[Rules Router] Error fetching alert logs:', error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch alert logs.',
+      details: error.message,
+    });
+  }
+};
+
 // Route definitions (supporting both mount at /api/rules and mount at root)
 router.post('/deploy', handleDeploy);
 router.post('/api/rules/deploy', handleDeploy);
+
+router.get('/alerts', handleGetAlerts);
+router.get('/api/rules/alerts', handleGetAlerts);
 
 router.get('/', handleGetRules);
 router.get('/api/rules', handleGetRules);

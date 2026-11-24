@@ -17,6 +17,7 @@ import ActionNode from './nodes/ActionNode';
 import MathNode from './nodes/MathNode';
 import Sidebar from './Sidebar';
 import ActiveRulesList from './components/ActiveRulesList';
+import AlertFeed from './components/AlertFeed';
 
 const initialNodes = [
   {
@@ -42,9 +43,11 @@ function FlowCanvas() {
   const { screenToFlowPosition, toObject } = useReactFlow();
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployedNotice, setDeployedNotice] = useState(false);
-  const [isRulesOpen, setIsRulesOpen] = useState(true);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(true);
+  const [drawerTab, setDrawerTab] = useState('rules'); // 'rules' | 'alerts'
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [rulesCount, setRulesCount] = useState(0);
+  const [alertsCount, setAlertsCount] = useState(0);
 
   // Register all custom nodes (Sensor, Action, and Math Filter)
   const nodeTypes = useMemo(
@@ -152,7 +155,8 @@ function FlowCanvas() {
 
       // Trigger automatic refresh of the deployed rules panel and ensure it is open
       setRefreshTrigger((prev) => prev + 1);
-      setIsRulesOpen(true);
+      setDrawerTab('rules');
+      setIsDrawerOpen(true);
 
       window.alert(
         `🎉 NexusFlow Engine Compiled & Deployed!\n\n` +
@@ -210,12 +214,19 @@ function FlowCanvas() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {/* Active Rules Drawer Toggle Button */}
                 <button
-                  onClick={() => setIsRulesOpen((prev) => !prev)}
+                  onClick={() => {
+                    if (isDrawerOpen && drawerTab === 'rules') {
+                      setIsDrawerOpen(false);
+                    } else {
+                      setDrawerTab('rules');
+                      setIsDrawerOpen(true);
+                    }
+                  }}
                   style={{
-                    padding: '9px 14px',
-                    backgroundColor: isRulesOpen ? '#eff6ff' : '#ffffff',
-                    color: isRulesOpen ? '#1d4ed8' : '#334155',
-                    border: `1px solid ${isRulesOpen ? '#93c5fd' : '#cbd5e1'}`,
+                    padding: '9px 12px',
+                    backgroundColor: isDrawerOpen && drawerTab === 'rules' ? '#eff6ff' : '#ffffff',
+                    color: isDrawerOpen && drawerTab === 'rules' ? '#1d4ed8' : '#334155',
+                    border: `1px solid ${isDrawerOpen && drawerTab === 'rules' ? '#93c5fd' : '#cbd5e1'}`,
                     borderRadius: '8px',
                     fontSize: '13px',
                     fontWeight: '600',
@@ -227,20 +238,63 @@ function FlowCanvas() {
                     transition: 'all 0.15s ease',
                     fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                   }}
-                  title={isRulesOpen ? 'Hide Deployed Rules' : 'Show Deployed Rules'}
+                  title="Toggle Deployed Rules Panel"
                 >
                   <span>📋 Rules</span>
                   <span
                     style={{
                       fontSize: '11px',
                       fontWeight: 700,
-                      backgroundColor: isRulesOpen ? '#dbeafe' : '#f1f5f9',
-                      color: isRulesOpen ? '#1e40af' : '#475569',
+                      backgroundColor: isDrawerOpen && drawerTab === 'rules' ? '#dbeafe' : '#f1f5f9',
+                      color: isDrawerOpen && drawerTab === 'rules' ? '#1e40af' : '#475569',
                       padding: '2px 7px',
                       borderRadius: '9999px',
                     }}
                   >
                     {rulesCount}
+                  </span>
+                </button>
+
+                {/* Alert History Feed Toggle Button */}
+                <button
+                  onClick={() => {
+                    if (isDrawerOpen && drawerTab === 'alerts') {
+                      setIsDrawerOpen(false);
+                    } else {
+                      setDrawerTab('alerts');
+                      setIsDrawerOpen(true);
+                    }
+                  }}
+                  style={{
+                    padding: '9px 12px',
+                    backgroundColor: isDrawerOpen && drawerTab === 'alerts' ? '#fff7ed' : '#ffffff',
+                    color: isDrawerOpen && drawerTab === 'alerts' ? '#c2410c' : '#334155',
+                    border: `1px solid ${isDrawerOpen && drawerTab === 'alerts' ? '#fdba74' : '#cbd5e1'}`,
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                    transition: 'all 0.15s ease',
+                    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                  }}
+                  title="Toggle Alert History Feed"
+                >
+                  <span>🔥 Alerts</span>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      backgroundColor: isDrawerOpen && drawerTab === 'alerts' ? '#fed7aa' : '#f1f5f9',
+                      color: isDrawerOpen && drawerTab === 'alerts' ? '#9a3412' : '#475569',
+                      padding: '2px 7px',
+                      borderRadius: '9999px',
+                    }}
+                  >
+                    {alertsCount}
                   </span>
                 </button>
 
@@ -292,24 +346,131 @@ function FlowCanvas() {
         </ReactFlow>
       </div>
 
-      {/* Collapsible Active Rules Drawer / Panel */}
-      {isRulesOpen && (
+      {/* Collapsible Active Rules & Alert History Drawer */}
+      {isDrawerOpen && (
         <aside
           style={{
-            width: '360px',
+            width: '380px',
             height: '100%',
             flexShrink: 0,
             zIndex: 10,
             borderLeft: '1px solid #e2e8f0',
-            boxShadow: '-4px 0 16px rgba(0, 0, 0, 0.04)',
+            boxShadow: '-4px 0 16px rgba(0, 0, 0, 0.05)',
             backgroundColor: '#ffffff',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
-          <ActiveRulesList
-            refreshTrigger={refreshTrigger}
-            onClose={() => setIsRulesOpen(false)}
-            onRulesCountChange={setRulesCount}
-          />
+          {/* Drawer Top Navigation Tab Bar */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderBottom: '1px solid #e2e8f0',
+              backgroundColor: '#f8fafc',
+              padding: '6px 12px',
+            }}
+          >
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button
+                onClick={() => setDrawerTab('rules')}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  backgroundColor: drawerTab === 'rules' ? '#ffffff' : 'transparent',
+                  color: drawerTab === 'rules' ? '#1d4ed8' : '#64748b',
+                  boxShadow: drawerTab === 'rules' ? '0 1px 2px rgba(0, 0, 0, 0.06)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>📋 Rules</span>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    backgroundColor: drawerTab === 'rules' ? '#dbeafe' : '#e2e8f0',
+                    color: drawerTab === 'rules' ? '#1e40af' : '#475569',
+                    padding: '1px 6px',
+                    borderRadius: '9999px',
+                  }}
+                >
+                  {rulesCount}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setDrawerTab('alerts')}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  backgroundColor: drawerTab === 'alerts' ? '#ffffff' : 'transparent',
+                  color: drawerTab === 'alerts' ? '#ea580c' : '#64748b',
+                  boxShadow: drawerTab === 'alerts' ? '0 1px 2px rgba(0, 0, 0, 0.06)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>🔥 Alerts</span>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    backgroundColor: drawerTab === 'alerts' ? '#ffedd5' : '#e2e8f0',
+                    color: drawerTab === 'alerts' ? '#c2410c' : '#475569',
+                    padding: '1px 6px',
+                    borderRadius: '9999px',
+                  }}
+                >
+                  {alertsCount}
+                </span>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setIsDrawerOpen(false)}
+              title="Close drawer"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#64748b',
+                cursor: 'pointer',
+                fontSize: '16px',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Drawer Body: Rules or Alert Feed */}
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            {drawerTab === 'rules' ? (
+              <ActiveRulesList
+                refreshTrigger={refreshTrigger}
+                onClose={() => setIsDrawerOpen(false)}
+                onRulesCountChange={setRulesCount}
+              />
+            ) : (
+              <AlertFeed
+                onAlertsCountChange={setAlertsCount}
+                onClose={() => setIsDrawerOpen(false)}
+              />
+            )}
+          </div>
         </aside>
       )}
     </div>

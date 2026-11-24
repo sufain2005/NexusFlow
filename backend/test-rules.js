@@ -158,6 +158,18 @@ async function runTests() {
     const reloaded = await initializeSavedRules();
     assert(Array.isArray(reloaded), 'initializeSavedRules returns array of compiled engines');
 
+    // 6. Test GET /alerts (Alert History Log)
+    console.log('\n6️⃣ Testing GET /alerts (Alert History Log)...');
+    const alertsResult = await dispatchRoute(rulesRouter, 'GET', '/alerts');
+    assert(alertsResult.status === 200, 'GET /alerts returns HTTP 200');
+    assert(alertsResult.data.success === true, 'GET /alerts returns success: true');
+    assert(Array.isArray(alertsResult.data.data), 'GET /alerts returns data array');
+    assert(alertsResult.data.data.length >= 1, 'GET /alerts contains logged alert from test 3');
+    const firstAlert = alertsResult.data.data[0];
+    assert(firstAlert.sensorId === 'turbine-01', 'Alert sensorId matches "turbine-01"');
+    assert(firstAlert.value === 88, 'Alert value matches triggered value 88');
+    assert(firstAlert.threshold === 80, 'Alert threshold matches 80');
+
     console.log(`\n===========================================`);
     console.log(`📊 Test Results: ${passed}/${total} checks passed!`);
     console.log(`===========================================\n`);
