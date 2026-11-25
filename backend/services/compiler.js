@@ -336,6 +336,13 @@ async function initializeSavedRules() {
   }
 }
 
+/**
+ * Returns the number of active RxJS pipeline subscriptions currently listening.
+ */
+function getActivePipelinesCount() {
+  return activeSubscriptions.filter((sub) => sub && !sub.closed).length;
+}
+
 module.exports = {
   telemetryStream$,
   compileGraph,
@@ -345,4 +352,6 @@ module.exports = {
   teardownAll,
   recordAlertLog,
   inMemoryAlertLogs,
+  getActivePipelinesCount,
+  getActiveRulesCount: getActivePipelinesCount,
 };

@@ -8,9 +8,11 @@
 
 const { compileGraph, evaluateTelemetry, initializeSavedRules } = require('./services/compiler');
 const rulesRouter = require('./routes/rules');
+const app = require('./server');
 
 // Helper to create mock Express request and response objects
 function createMockReqRes(options = {}) {
+  const headers = {};
   const req = {
     method: options.method || 'GET',
     url: options.url || '/',
@@ -23,6 +25,13 @@ function createMockReqRes(options = {}) {
   let responseData = null;
 
   const res = {
+    setHeader(key, val) {
+      headers[key] = val;
+      return res;
+    },
+    getHeader(key) {
+      return headers[key];
+    },
     status(code) {
       statusCode = code;
       return res;
@@ -33,6 +42,10 @@ function createMockReqRes(options = {}) {
     },
     send(data) {
       responseData = data;
+      return res;
+    },
+    end(data) {
+      if (data) responseData = data;
       return res;
     },
     getStatusCode() {
@@ -169,6 +182,22 @@ async function runTests() {
     assert(firstAlert.sensorId === 'turbine-01', 'Alert sensorId matches "turbine-01"');
     assert(firstAlert.value === 88, 'Alert value matches triggered value 88');
     assert(firstAlert.threshold === 80, 'Alert threshold matches 80');
+
+    // 7. Test GET /api/health (System Health Check)
+    console.log('\n7️⃣ Testing GET /api/health (System Health Check)...');
+    const healthResult = await new Promise((resolve) => {
+      const { req, res } = createMockReqRes({ method: 'GET', url: '/api/health' });
+      const origJson = res.json.bind(res);
+      res.json = (data) => {
+        origJson(data);
+        resolve({ status: res.getStatusCode(), data: res.getData() });
+      };
+      app.handle(req, res);
+    });
+    assert(healthResult.status === 200, 'GET /api/health returns HTTP 200');
+    assert(healthResult.data.status === 'online', 'GET /api/health returns status: "online"');
+    assert(typeof healthResult.data.activeRulesCount === 'number', 'GET /api/health returns numeric activeRulesCount');
+    assert(Boolean(healthResult.data.timestamp), 'GET /api/health returns server timestamp');
 
     console.log(`\n===========================================`);
     console.log(`📊 Test Results: ${passed}/${total} checks passed!`);
